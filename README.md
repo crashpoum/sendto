@@ -1,15 +1,19 @@
-SendTo
+# SendTo
 
-Send files inside your own network quickly and easy
+Send files inside your own network, quickly and easily.
+
 Tap a machine on the house network. Pick files. No account, no cloud. Simple and local.
 
-Works on Windows and Android right now. Linux version is coming soon.
+Works on **Windows** and **Android** right now. Linux is coming soon.
 
-Files land in Downloads by default. Can be changed inside the app in the settings.
+## Usage
 
-Theme can be changed into either of these: System / Light / Dark / OLED. 
+- Files land in **Downloads** by default. Change the folder in Settings.
+- Theme: System, Light, Dark, or OLED.
 
-Coming soon:
-Linux/macOS packages.
+## Coming soon
 
-Please feel free to report any bugs or issues.
+- Linux support
+- macOS support
+
+Please report bugs and issues.
