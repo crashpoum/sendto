@@ -1,0 +1,39 @@
+name: sendto
+description: Send files to machines on the house network. No account. No setup.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  file_picker: ^13.1.0
+  path_provider: ^2.1.5
+  shared_preferences: ^2.3.3
+  window_manager: ^0.4.3
+  uuid: ^4.5.1
+  path: ^1.9.0
+  collection: ^1.18.0
+  permission_handler: ^11.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/icon.png
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: assets/icon_fg.png
+  windows:
+    generate: true
+    image_path: assets/icon.png
+    icon_size: 256
