@@ -66,7 +66,7 @@ class Peer {
   Uri get baseUri => Uri.parse('http://$ip:$port');
 
   bool get isOnline =>
-      DateTime.now().difference(lastSeen) < const Duration(seconds: 8);
+      DateTime.now().difference(lastSeen) < const Duration(seconds: 45);
 
   factory Peer.fromBeacon(Map<String, dynamic> json, String ip) {
     return Peer(

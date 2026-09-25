@@ -10,6 +10,7 @@ Future<void> requestAndroidPermissions() async {
     Permission.nearbyWifiDevices,
     Permission.storage,
     Permission.photos,
+    Permission.manageExternalStorage,
     Permission.notification,
   ].request();
 }

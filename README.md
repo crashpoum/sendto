@@ -1,26 +1,19 @@
 # SendTo
 
-Tap a machine on the house network. Pick files. They land in Downloads by default. Can be changed.
+Send files inside your own network, quickly and easily.
 
-Same app on Windows and Android. Linux in the works. No account, no cloud. Simple and local.
+Tap a machine on the house network. Pick files. No account, no cloud. Simple and local.
 
+Works on **Windows** and **Android** right now. Linux is coming soon.
 
-## First real test (one PC + one phone)
+## Usage
 
-1. Windows app running. Network profile **Private**. Allow the firewall popup once.
-2. Android app running, same LAN.
-3. Phone should list the PC. PC should list the phone.
-4. Tap the other machine → pick a jpg → **Save here**.
+- Files land in **Downloads** by default. Change the folder in Settings.
+- Theme: System, Light, Dark, or OLED.
 
-## Theme
+## Coming soon
 
-Top right: System / Light / Dark / OLED. Instant. Remembered.
+- Linux package
+- macOS package
 
-## Ports
-
-- UDP `47821` beacon
-- TCP `47822` files
-
-## Not yet
-
-Folders, resume, Tailscale off-LAN, Linux/macOS packages.
+Please report bugs and issues.

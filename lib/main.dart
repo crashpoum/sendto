@@ -44,7 +44,7 @@ Future<void> main() async {
   runApp(SendToApp(themes: themes, app: app));
 }
 
-class SendToApp extends StatelessWidget {
+class SendToApp extends StatefulWidget {
   const SendToApp({
     super.key,
     required this.themes,
@@ -58,7 +58,33 @@ class SendToApp extends StatelessWidget {
   static const icons = kUsedIcons;
 
   @override
+  State<SendToApp> createState() => _SendToAppState();
+}
+
+class _SendToAppState extends State<SendToApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.app.refreshPeers();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final themes = widget.themes;
+    final app = widget.app;
     return AnimatedBuilder(
       animation: themes,
       builder: (context, _) {

@@ -17,3 +17,5 @@ android/local.properties
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 *.log
 .DS_Store
+
+installer/out/

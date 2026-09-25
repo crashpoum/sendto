@@ -17,6 +17,7 @@ class ReceiveServer extends ChangeNotifier {
 
   IncomingOffer? incoming;
   String? saveFolder;
+  String? lastSavedPath;
 
   Future<void> start() async {
     saveFolder ??= await defaultSaveFolder();
@@ -147,12 +148,16 @@ class ReceiveServer extends ChangeNotifier {
     final rawName = req.headers.value('x-filename') ?? 'file';
     final name = Uri.decodeComponent(rawName);
     final safe = p.basename(name);
-    final destDir = Directory(saveFolder!);
+    final destDir = Directory(saveFolder ?? await defaultSaveFolder());
     if (!destDir.existsSync()) destDir.createSync(recursive: true);
     final dest = File(p.join(destDir.path, _uniqueName(destDir.path, safe)));
     final sink = dest.openWrite();
     await sink.addStream(req);
     await sink.close();
+
+    lastSavedPath = dest.path;
+    incoming = null;
+    notifyListeners();
 
     req.response.statusCode = 201;
     await req.response.close();
@@ -178,9 +183,32 @@ class ReceiveServer extends ChangeNotifier {
   }
 
   Future<String> defaultSaveFolder() async {
+    if (Platform.isAndroid) {
+      const public = '/storage/emulated/0/Download/SendTo';
+      try {
+        final dir = Directory(public);
+        if (!dir.existsSync()) dir.createSync(recursive: true);
+        final probe = File(p.join(public, '.sendto_write'));
+        await probe.writeAsString('ok');
+        await probe.delete();
+        return public;
+      } catch (_) {}
+      try {
+        final ext = await getExternalStorageDirectory();
+        if (ext != null) {
+          final dir = Directory(p.join(ext.path, 'SendTo'));
+          if (!dir.existsSync()) dir.createSync(recursive: true);
+          return dir.path;
+        }
+      } catch (_) {}
+    }
     try {
       final downloads = await getDownloadsDirectory();
-      if (downloads != null) return downloads.path;
+      if (downloads != null) {
+        final dir = Directory(p.join(downloads.path, 'SendTo'));
+        if (!dir.existsSync()) dir.createSync(recursive: true);
+        return dir.path;
+      }
     } catch (_) {}
     final docs = await getApplicationDocumentsDirectory();
     final folder = Directory(p.join(docs.path, 'SendTo'));

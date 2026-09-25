@@ -12,7 +12,7 @@ import 'device_card.dart';
 import 'settings_page.dart';
 import 'theme_sheet.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     required this.app,
@@ -23,8 +23,31 @@ class HomePage extends StatelessWidget {
   final ThemeController themes;
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  String? _seenSaved;
+
+  AppController get app => widget.app;
+  ThemeController get themes => widget.themes;
+
+  @override
   Widget build(BuildContext context) {
     final t = SendToTheme.of(context);
+    final saved = app.receiver.lastSavedPath;
+    if (saved != null && saved != _seenSaved) {
+      _seenSaved = saved;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved to $saved'),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      });
+    }
     return Scaffold(
       body: SafeArea(
         child: AnimatedBuilder(
