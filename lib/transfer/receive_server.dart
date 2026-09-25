@@ -21,12 +21,34 @@ class ReceiveServer extends ChangeNotifier {
 
   Future<void> start() async {
     saveFolder ??= await defaultSaveFolder();
-    _server = await HttpServer.bind(InternetAddress.anyIPv4, kTransferPort);
-    _server!.listen(_handle);
+    if (_server != null) return;
+    await _bind();
+  }
+
+  Future<void> restart() async {
+    await stop();
+    await _bind();
+  }
+
+  Future<void> _bind() async {
+    Object? lastErr;
+    for (var i = 0; i < 4; i++) {
+      try {
+        _server = await HttpServer.bind(InternetAddress.anyIPv4, kTransferPort);
+        _server!.listen(_handle);
+        return;
+      } catch (e) {
+        lastErr = e;
+        await Future<void>.delayed(Duration(milliseconds: 200 * (i + 1)));
+      }
+    }
+    debugPrint('SendTo receiver bind failed: $lastErr');
   }
 
   Future<void> stop() async {
-    await _server?.close(force: true);
+    try {
+      await _server?.close(force: true);
+    } catch (_) {}
     _server = null;
   }
 

@@ -58,7 +58,10 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> refreshPeers() => discovery.refresh();
+  Future<void> refreshPeers() async {
+    await receiver.restart();
+    await discovery.refresh();
+  }
 
   void forgetPeer(Peer peer) => discovery.forget(peer.id);
 
