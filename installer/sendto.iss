@@ -1,5 +1,5 @@
 #define MyAppName "SendTo"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.2"
 #define MyAppPublisher "crashpoum"
 #define MyAppExeName "sendto.exe"
 #define ReleaseDir "..\..\..\..\dev\sendto\build\windows\x64\runner\Release"

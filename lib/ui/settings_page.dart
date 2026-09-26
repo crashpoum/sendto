@@ -169,12 +169,12 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 6),
             Text(
-              '0.1.0',
+              '0.1.2',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 14),
             Text(
-              'Tap a machine on this network and send any file. Easy, local, simple.',
+              'Tap a machine on this network and send any file. Select the clipboard icon to send your clipboard.Easy, local, simple.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],

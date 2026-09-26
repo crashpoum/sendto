@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -116,8 +118,45 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void acceptIncoming() => receiver.decide(IncomingDecision.accepted);
+  void acceptIncoming() {
+    final clip = receiver.incoming?.clipboardText;
+    receiver.decide(IncomingDecision.accepted);
+    if (clip != null) {
+      Clipboard.setData(ClipboardData(text: clip));
+      receiver.clearIncoming();
+    }
+  }
+
   void rejectIncoming() => receiver.decide(IncomingDecision.rejected);
+
+  Future<String?> sendClipboard(Peer peer) async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim() ?? '';
+    if (text.isEmpty) return 'Clipboard is empty';
+    if (text.length > 1000000) return 'Clipboard is too large';
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+    try {
+      final payload = utf8.encode(jsonEncode({
+        'fromId': self.id,
+        'fromName': self.name,
+        'text': text,
+      }));
+      final req = await client.postUrl(peer.baseUri.replace(path: '/clipboard'));
+      req.headers.contentType = ContentType.json;
+      req.contentLength = payload.length;
+      req.add(payload);
+      final res = await req.close();
+      await res.drain<void>();
+      if (res.statusCode != 200 && res.statusCode != 202) {
+        return 'The other machine did not accept it (${res.statusCode})';
+      }
+      return null;
+    } catch (e) {
+      return e.toString();
+    } finally {
+      client.close(force: true);
+    }
+  }
 
   Future<String> _deviceName(SharedPreferences prefs, String os) async {
     final saved = prefs.getString('sendto.name');

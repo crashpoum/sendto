@@ -9,11 +9,13 @@ class DeviceCard extends StatelessWidget {
     required this.peer,
     required this.onTap,
     this.onLongPress,
+    this.onClipboard,
   });
 
   final Peer peer;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onClipboard;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +52,13 @@ class DeviceCard extends StatelessWidget {
               ],
             ),
           ),
+          if (peer.isOnline && onClipboard != null)
+            IconButton(
+              tooltip: 'Send clipboard',
+              visualDensity: VisualDensity.compact,
+              onPressed: onClipboard,
+              icon: Icon(Icons.content_paste_outlined, color: t.muted, size: 20),
+            ),
           Container(
             width: 8,
             height: 8,

@@ -14,4 +14,5 @@ const kUsedIcons = <IconData>[
   Icons.laptop_outlined,
   Icons.laptop_mac_outlined,
   Icons.desktop_windows_outlined,
+  Icons.content_paste_outlined,
 ];

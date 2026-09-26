@@ -25,13 +25,17 @@ class IncomingOffer {
     required this.fromId,
     required this.fromName,
     required this.files,
+    this.clipboardText,
   });
 
   final String id;
   final String fromId;
   final String fromName;
   final List<FileOffer> files;
+  final String? clipboardText;
   IncomingDecision decision = IncomingDecision.pending;
+
+  bool get isClipboard => clipboardText != null;
 }
 
 enum SendPhase { waiting, transferring, done, failed, cancelled }

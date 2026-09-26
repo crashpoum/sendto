@@ -247,6 +247,16 @@ class _PeerList extends StatelessWidget {
     if (ok == true) app.forgetPeer(peer);
   }
 
+  Future<void> _sendClipboard(BuildContext context, Peer peer) async {
+    final err = await app.sendClipboard(peer);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(err ?? 'Clipboard sent to ${peer.name}'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final peers = app.peers;
@@ -273,6 +283,9 @@ class _PeerList extends StatelessWidget {
                 return DeviceCard(
                   peer: peer,
                   onLongPress: () => _forget(context, peer),
+                  onClipboard: peer.isOnline
+                      ? () => _sendClipboard(context, peer)
+                      : null,
                   onTap: () {
                     if (!peer.isOnline) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -417,14 +430,22 @@ class _IncomingSheet extends StatelessWidget {
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 32),
               ),
               const SizedBox(height: 16),
-              for (final f in offer.files)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    '${f.name}  ·  ${_size(f.size)}',
-                    style: Theme.of(context).textTheme.bodyMedium,
+              if (offer.isClipboard)
+                Text(
+                  offer.clipboardText!.length > 280
+                      ? '${offer.clipboardText!.substring(0, 280)}…'
+                      : offer.clipboardText!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                )
+              else
+                for (final f in offer.files)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      '${f.name}  ·  ${_size(f.size)}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   ),
-                ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -436,7 +457,7 @@ class _IncomingSheet extends StatelessWidget {
                     shape: const StadiumBorder(),
                   ),
                   onPressed: app.acceptIncoming,
-                  child: const Text('Save here'),
+                  child: Text(offer.isClipboard ? 'Copy here' : 'Save here'),
                 ),
               ),
               const SizedBox(height: 8),

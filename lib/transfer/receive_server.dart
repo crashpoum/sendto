@@ -93,6 +93,11 @@ class ReceiveServer extends ChangeNotifier {
         return;
       }
 
+      if (req.method == 'POST' && path == '/clipboard') {
+        await _onClipboard(req);
+        return;
+      }
+
       if (req.method == 'GET' && path.startsWith('/offer/') && path.endsWith('/status')) {
         final id = path.split('/')[2];
         final offer = _offers[id];
@@ -156,6 +161,27 @@ class ReceiveServer extends ChangeNotifier {
         }
       }
     }));
+  }
+
+  Future<void> _onClipboard(HttpRequest req) async {
+    final body = jsonDecode(await utf8.decodeStream(req)) as Map<String, dynamic>;
+    final text = (body['text'] as String?) ?? '';
+    if (text.isEmpty || text.length > 1000000) {
+      req.response.statusCode = 400;
+      req.response.write('empty');
+      await req.response.close();
+      return;
+    }
+    incoming = IncomingOffer(
+      id: 'clip-${DateTime.now().millisecondsSinceEpoch}',
+      fromId: body['fromId'] as String? ?? '',
+      fromName: body['fromName'] as String? ?? 'Someone',
+      files: const [],
+      clipboardText: text,
+    );
+    notifyListeners();
+    req.response.statusCode = 202;
+    await req.response.close();
   }
 
   Future<void> _onFile(HttpRequest req) async {
