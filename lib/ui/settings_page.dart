@@ -160,6 +160,58 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: const Text('Save'),
               ),
             ),
+            const SizedBox(height: 36),
+            Text('Advanced', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 6),
+            Text(
+              'Optional. Most people can leave this closed.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Require PIN to receive'),
+              subtitle: Text(
+                widget.app.receiver.requirePin
+                    ? 'PIN ${widget.app.receiver.pinCode}. The sender types this when they send you files.'
+                    : 'Off. Anyone on this network who can see you can offer a file.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              value: widget.app.receiver.requirePin,
+              onChanged: (v) async {
+                await widget.app.setRequirePin(v);
+                setState(() {});
+              },
+            ),
+            if (widget.app.receiver.requirePin)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () async {
+                    await widget.app.rotatePin();
+                    setState(() {});
+                  },
+                  child: const Text('New PIN'),
+                ),
+              ),
+            const SizedBox(height: 20),
+            Text(
+              'Add a host (Tailscale / IP)',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Use this when two machines cannot see each other on the local network. Type a Tailscale name, a 100.x address, or a LAN IP. SendTo must already be open on that machine. Port 47822.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            _HostField(onAdd: (host) async {
+              final err = await widget.app.addManualHost(host);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(err ?? 'Added $host')),
+              );
+            }),
             const SizedBox(height: 40),
             Text('About', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 10),
@@ -169,17 +221,66 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 6),
             Text(
-              '0.1.2',
+              '0.1.3',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 14),
             Text(
-              'Tap a machine on this network and send any file. Select the clipboard icon to send your clipboard.Easy, local, simple.',
+              'Send files, folders, or clipboard to another machine on the network. No account.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _HostField extends StatefulWidget {
+  const _HostField({required this.onAdd});
+  final Future<void> Function(String host) onAdd;
+
+  @override
+  State<_HostField> createState() => _HostFieldState();
+}
+
+class _HostFieldState extends State<_HostField> {
+  final _ctrl = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _ctrl,
+            decoration: const InputDecoration(
+              hintText: '100.x.x.x or pc-name',
+            ),
+            onSubmitted: (_) => _go(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        TextButton(
+          onPressed: _busy ? null : _go,
+          child: Text(_busy ? '…' : 'Add'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _go() async {
+    final host = _ctrl.text.trim();
+    if (host.isEmpty) return;
+    setState(() => _busy = true);
+    await widget.onAdd(host);
+    if (mounted) setState(() => _busy = false);
   }
 }

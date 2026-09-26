@@ -15,10 +15,9 @@ subprojects {
 }
 
 subprojects {
-    pluginManager.withPlugin("com.android.library") {
-        extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
-            compileSdk = 36
-        }
+    afterEvaluate {
+        extensions.findByType<com.android.build.api.dsl.LibraryExtension>()?.compileSdk = 36
+        extensions.findByType<com.android.build.api.dsl.ApplicationExtension>()?.compileSdk = 36
     }
 }
 

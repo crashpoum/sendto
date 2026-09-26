@@ -18,6 +18,11 @@ class ReceiveServer extends ChangeNotifier {
   IncomingOffer? incoming;
   String? saveFolder;
   String? lastSavedPath;
+  String? lastFromName;
+  String? lastSavedName;
+  int lastSavedSize = 0;
+  bool requirePin = false;
+  String pinCode = '0000';
 
   Future<void> start() async {
     saveFolder ??= await defaultSaveFolder();
@@ -59,10 +64,8 @@ class ReceiveServer extends ChangeNotifier {
     _waiters.remove(offer.id)?.complete(decision);
     if (decision == IncomingDecision.rejected) {
       incoming = null;
-      notifyListeners();
-    } else {
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   void clearIncoming() {
@@ -79,11 +82,20 @@ class ReceiveServer extends ChangeNotifier {
         return;
       }
 
-      final path = req.uri.path;
+      final path = req.uri.path.replaceAll(RegExp(r'/+$'), '');
+
       if (req.method == 'GET' && path == '/health') {
         req.response
           ..statusCode = 200
           ..write('ok');
+        await req.response.close();
+        return;
+      }
+
+      if (req.method == 'GET' && path == '/clipboard') {
+        req.response
+          ..statusCode = 200
+          ..write('clipboard');
         await req.response.close();
         return;
       }
@@ -93,24 +105,36 @@ class ReceiveServer extends ChangeNotifier {
         return;
       }
 
-      if (req.method == 'POST' && path == '/clipboard') {
+      if (req.method == 'POST' && path.endsWith('clipboard')) {
         await _onClipboard(req);
         return;
       }
 
-      if (req.method == 'GET' && path.startsWith('/offer/') && path.endsWith('/status')) {
+      if (req.method == 'GET' &&
+          path.startsWith('/offer/') &&
+          path.endsWith('/status')) {
         final id = path.split('/')[2];
         final offer = _offers[id];
         req.response
           ..headers.contentType = ContentType.json
           ..write(jsonEncode({
             'status': offer?.decision.name ?? 'missing',
+            'needPin': requirePin && offer != null && !offer.pinOk,
           }));
         await req.response.close();
         return;
       }
 
-      if (req.method == 'POST' && path.startsWith('/offer/') && path.endsWith('/file')) {
+      if (req.method == 'POST' &&
+          path.startsWith('/offer/') &&
+          path.endsWith('/pin')) {
+        await _onPin(req);
+        return;
+      }
+
+      if (req.method == 'POST' &&
+          path.startsWith('/offer/') &&
+          path.endsWith('/file')) {
         await _onFile(req);
         return;
       }
@@ -127,7 +151,8 @@ class ReceiveServer extends ChangeNotifier {
   }
 
   Future<void> _onOffer(HttpRequest req) async {
-    final body = jsonDecode(await utf8.decodeStream(req)) as Map<String, dynamic>;
+    final body =
+        jsonDecode(await utf8.decodeStream(req)) as Map<String, dynamic>;
     final id = body['id'] as String;
     final offer = IncomingOffer(
       id: id,
@@ -144,14 +169,12 @@ class ReceiveServer extends ChangeNotifier {
     final waiter = Completer<IncomingDecision>();
     _waiters[id] = waiter;
 
-    // Sender polls /status. We just ack that the offer landed.
     req.response
       ..statusCode = 202
       ..headers.contentType = ContentType.json
       ..write(jsonEncode({'id': id}));
     await req.response.close();
 
-    // Don't leak waiters if the user never answers.
     unawaited(Future<void>.delayed(const Duration(minutes: 2), () {
       if (!waiter.isCompleted) {
         waiter.complete(IncomingDecision.rejected);
@@ -163,8 +186,48 @@ class ReceiveServer extends ChangeNotifier {
     }));
   }
 
+  Future<void> _onPin(HttpRequest req) async {
+    final id = req.uri.path.split('/')[2];
+    final offer = _offers[id];
+    if (offer == null) {
+      req.response.statusCode = 404;
+      await req.response.close();
+      return;
+    }
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(await utf8.decodeStream(req)) as Map<String, dynamic>;
+    } catch (_) {
+      req.response.statusCode = 400;
+      await req.response.close();
+      return;
+    }
+    final pin = '${body['pin'] ?? ''}'.trim();
+    if (requirePin && pin == pinCode) {
+      offer.pinOk = true;
+      offer.decision = IncomingDecision.accepted;
+      _waiters.remove(id)?.complete(IncomingDecision.accepted);
+      incoming = offer;
+      notifyListeners();
+      req.response.statusCode = 200;
+      await req.response.close();
+      return;
+    }
+    req.response.statusCode = 403;
+    req.response.write('bad pin');
+    await req.response.close();
+  }
+
   Future<void> _onClipboard(HttpRequest req) async {
-    final body = jsonDecode(await utf8.decodeStream(req)) as Map<String, dynamic>;
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(await utf8.decodeStream(req)) as Map<String, dynamic>;
+    } catch (_) {
+      req.response.statusCode = 400;
+      req.response.write('bad json');
+      await req.response.close();
+      return;
+    }
     final text = (body['text'] as String?) ?? '';
     if (text.isEmpty || text.length > 1000000) {
       req.response.statusCode = 400;
@@ -204,6 +267,13 @@ class ReceiveServer extends ChangeNotifier {
     await sink.close();
 
     lastSavedPath = dest.path;
+    lastSavedName = safe;
+    lastFromName = offer.fromName;
+    try {
+      lastSavedSize = dest.lengthSync();
+    } catch (_) {
+      lastSavedSize = 0;
+    }
     incoming = null;
     notifyListeners();
 

@@ -210,4 +210,47 @@ class DiscoveryService extends ChangeNotifier {
     final list = _peers.values.map((p) => p.toStore()).toList();
     _prefs?.setString(kKnownPeersKey, jsonEncode(list));
   }
+
+  Future<String?> addManualHost(String raw) async {
+    var host = raw.trim();
+    if (host.startsWith('http://')) host = host.substring(7);
+    if (host.startsWith('https://')) host = host.substring(8);
+    host = host.split('/').first;
+    var port = kTransferPort;
+    if (host.contains(':')) {
+      final parts = host.split(':');
+      host = parts.first;
+      port = int.tryParse(parts.last) ?? kTransferPort;
+    }
+    if (host.isEmpty) return 'Enter a hostname or IP';
+    String ip = host;
+    try {
+      final looked = await InternetAddress.lookup(host);
+      if (looked.isNotEmpty) ip = looked.first.address;
+    } catch (_) {}
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+    try {
+      final req = await client.getUrl(Uri.parse('http://$ip:$port/health'));
+      final res = await req.close().timeout(const Duration(seconds: 4));
+      await res.drain<void>();
+      if (res.statusCode != 200) return 'No SendTo at $host';
+    } catch (_) {
+      return 'Could not reach $host:$port';
+    } finally {
+      client.close(force: true);
+    }
+    final id = 'manual-$host';
+    _peers[id] = Peer(
+      id: id,
+      name: host,
+      os: 'windows',
+      ip: ip,
+      port: port,
+      colorIndex: colorIndexForId(id),
+      lastSeen: DateTime.now(),
+    );
+    _saveKnown();
+    notifyListeners();
+    return null;
+  }
 }

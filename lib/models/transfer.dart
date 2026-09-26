@@ -34,6 +34,7 @@ class IncomingOffer {
   final List<FileOffer> files;
   final String? clipboardText;
   IncomingDecision decision = IncomingDecision.pending;
+  bool pinOk = false;
 
   bool get isClipboard => clipboardText != null;
 }
@@ -49,6 +50,8 @@ class OutgoingTransfer {
   final String peerName;
   final List<FileOffer> files;
   SendPhase phase = SendPhase.waiting;
+  bool needsPin = false;
+  String? pin;
   int bytesSent = 0;
   int get bytesTotal => files.fold(0, (a, f) => a + f.size);
   String? error;

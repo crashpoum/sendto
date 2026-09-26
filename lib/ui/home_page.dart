@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -8,7 +9,10 @@ import '../models/peer.dart';
 import '../models/transfer.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
+import '../util/reveal.dart';
+import '../util/zip_folder.dart';
 import 'device_card.dart';
+import 'history_page.dart';
 import 'settings_page.dart';
 import 'theme_sheet.dart';
 
@@ -28,9 +32,13 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String? _seenSaved;
+  bool _dragging = false;
 
   AppController get app => widget.app;
   ThemeController get themes => widget.themes;
+
+  bool get _desktop =>
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +52,17 @@ class _HomePageState extends State<HomePage> {
           SnackBar(
             content: Text('Saved to $saved'),
             duration: const Duration(seconds: 6),
+            action: _desktop
+                ? SnackBarAction(
+                    label: 'Show',
+                    onPressed: () => revealPath(saved),
+                  )
+                : null,
           ),
         );
       });
     }
-    return Scaffold(
+    Widget page = Scaffold(
       body: SafeArea(
         child: AnimatedBuilder(
           animation: Listenable.merge([app, themes]),
@@ -95,6 +109,18 @@ class _HomePageState extends State<HomePage> {
                                 onPressed: app.refreshPeers,
                               ),
                               _ToolbarIcon(
+                                tooltip: 'History',
+                                icon: Icons.history,
+                                color: t.muted,
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => HistoryPage(app: app),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _ToolbarIcon(
                                 tooltip: 'Settings',
                                 icon: Icons.settings_outlined,
                                 color: t.muted,
@@ -137,6 +163,26 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 28),
                       Expanded(child: _PeerList(app: app)),
+                      if (saved != null && _desktop)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Saved ${app.receiver.lastSavedName ?? saved}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => revealPath(saved),
+                                child: const Text('Show in folder'),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -151,6 +197,94 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+    if (!_desktop) return page;
+    return DropTarget(
+      onDragEntered: (_) => setState(() => _dragging = true),
+      onDragExited: (_) => setState(() => _dragging = false),
+      onDragDone: (detail) async {
+        setState(() => _dragging = false);
+        await _onDropped(detail.files.map((f) => f.path).toList());
+      },
+      child: Stack(
+        children: [
+          page,
+          if (_dragging)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  child: const Center(
+                    child: Text(
+                      'Drop to send',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _onDropped(List<String> paths) async {
+    final files = <FileOffer>[];
+    for (final path in paths) {
+      if (path.isEmpty) continue;
+      final dir = Directory(path);
+      if (dir.existsSync()) {
+        try {
+          files.add(await zipFolder(path));
+        } catch (_) {}
+        continue;
+      }
+      final file = File(path);
+      if (!file.existsSync()) continue;
+      files.add(FileOffer(
+        name: file.uri.pathSegments.isEmpty
+            ? file.path
+            : file.uri.pathSegments.last,
+        size: file.lengthSync(),
+        path: path,
+      ));
+    }
+    if (files.isEmpty) return;
+    final online = app.peers.where((p) => p.isOnline).toList();
+    if (online.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No machine online to send to')),
+      );
+      return;
+    }
+    Peer? target = online.length == 1 ? online.first : null;
+    if (target == null) {
+      target = await showModalBottomSheet<Peer>(
+        context: context,
+        builder: (context) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ListTile(title: Text('Send to')),
+                for (final peer in online)
+                  ListTile(
+                    title: Text(peer.name),
+                    subtitle: Text(peer.osLabel),
+                    onTap: () => Navigator.pop(context, peer),
+                  ),
+              ],
+            ),
+          );
+        },
+      );
+    }
+    if (target == null) return;
+    await app.sendTo(target, files);
   }
 
 }
@@ -247,6 +381,20 @@ class _PeerList extends StatelessWidget {
     if (ok == true) app.forgetPeer(peer);
   }
 
+  Future<void> _sendFolder(BuildContext context, Peer peer) async {
+    final dir = await FilePicker.getDirectoryPath();
+    if (dir == null || dir.isEmpty) return;
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Zipping folder…')),
+    );
+    final err = await app.sendFolder(peer, dir);
+    if (!context.mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+    }
+  }
+
   Future<void> _sendClipboard(BuildContext context, Peer peer) async {
     final err = await app.sendClipboard(peer);
     if (!context.mounted) return;
@@ -283,6 +431,8 @@ class _PeerList extends StatelessWidget {
                 return DeviceCard(
                   peer: peer,
                   onLongPress: () => _forget(context, peer),
+                  onFolder:
+                      peer.isOnline ? () => _sendFolder(context, peer) : null,
                   onClipboard: peer.isOnline
                       ? () => _sendClipboard(context, peer)
                       : null,
@@ -358,6 +508,16 @@ class _SendingOverlay extends StatelessWidget {
                         backgroundColor: t.line,
                       ),
                     ),
+                    if (transfer.needsPin &&
+                        transfer.phase == SendPhase.waiting) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'The other machine wants a PIN. It is shown on their screen under Settings → Advanced, and on the receive sheet.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 8),
+                      _PinField(onSubmit: app.submitOutgoingPin),
+                    ],
                     if (transfer.error != null) ...[
                       const SizedBox(height: 10),
                       Text(
@@ -429,6 +589,17 @@ class _IncomingSheet extends StatelessWidget {
                 'From ${offer.fromName}',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 32),
               ),
+              if (app.receiver.requirePin) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'PIN ${app.receiver.pinCode}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Text(
+                  'The sender types this on their machine.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
               const SizedBox(height: 16),
               if (offer.isClipboard)
                 Text(
@@ -481,5 +652,47 @@ class _IncomingSheet extends StatelessWidget {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
+class _PinField extends StatefulWidget {
+  const _PinField({required this.onSubmit});
+  final void Function(String pin) onSubmit;
+
+  @override
+  State<_PinField> createState() => _PinFieldState();
+}
+
+class _PinFieldState extends State<_PinField> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _ctrl,
+            keyboardType: TextInputType.number,
+            maxLength: 4,
+            decoration: const InputDecoration(
+              counterText: '',
+              hintText: 'PIN',
+            ),
+            onSubmitted: widget.onSubmit,
+          ),
+        ),
+        TextButton(
+          onPressed: () => widget.onSubmit(_ctrl.text),
+          child: const Text('Send PIN'),
+        ),
+      ],
+    );
   }
 }

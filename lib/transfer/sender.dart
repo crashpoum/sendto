@@ -52,6 +52,33 @@ class Sender {
         final body = jsonDecode(await utf8.decodeStream(statusRes))
             as Map<String, dynamic>;
         final raw = body['status'] as String? ?? 'pending';
+        final needPin = body['needPin'] == true;
+        if (needPin) {
+          transfer.needsPin = true;
+          onUpdate();
+          final pin = transfer.pin;
+          if (pin != null && pin.length >= 4) {
+            transfer.pin = null;
+            try {
+              final pinReq = await client.postUrl(
+                peer.baseUri.replace(path: '/offer/$id/pin'),
+              );
+              final payload = utf8.encode(jsonEncode({'pin': pin}));
+              pinReq.headers.contentType = ContentType.json;
+              pinReq.contentLength = payload.length;
+              pinReq.add(payload);
+              final pinRes = await pinReq.close();
+              await pinRes.drain<void>();
+              if (pinRes.statusCode != 200) {
+                transfer.error = 'Wrong PIN';
+                onUpdate();
+              }
+            } catch (e) {
+              transfer.error = e.toString();
+              onUpdate();
+            }
+          }
+        }
         if (raw == 'accepted') {
           decision = IncomingDecision.accepted;
           break;

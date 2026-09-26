@@ -10,12 +10,14 @@ class DeviceCard extends StatelessWidget {
     required this.onTap,
     this.onLongPress,
     this.onClipboard,
+    this.onFolder,
   });
 
   final Peer peer;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onClipboard;
+  final VoidCallback? onFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +54,13 @@ class DeviceCard extends StatelessWidget {
               ],
             ),
           ),
+          if (peer.isOnline && onFolder != null)
+            IconButton(
+              tooltip: 'Send folder',
+              visualDensity: VisualDensity.compact,
+              onPressed: onFolder,
+              icon: Icon(Icons.folder_outlined, color: t.muted, size: 20),
+            ),
           if (peer.isOnline && onClipboard != null)
             IconButton(
               tooltip: 'Send clipboard',
